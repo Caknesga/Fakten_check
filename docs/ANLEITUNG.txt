@@ -1,0 +1,51 @@
+FAKTENCHECK AMPEL – Chrome-Erweiterung
+======================================
+
+INSTALLIEREN (einmalig, ca. 2 Minuten, nur am Computer)
+1. ZIP entpacken. Es entsteht der Ordner "faktencheck-ampel".
+2. In Chrome die Adresse  chrome://extensions  öffnen.
+3. Oben rechts den "Entwicklermodus" einschalten.
+4. "Entpackte Erweiterung laden" klicken und den Ordner "faktencheck-ampel" wählen.
+   (Die alte Version "Faktencheck" mit Seitenleiste kannst du dort entfernen.)
+5. Oben rechts auf das Puzzle-Symbol klicken und "Faktencheck Ampel" anpinnen.
+
+BENUTZEN
+- Oben in der Symbolleiste siehst du eine kleine Ampel.
+- Klick darauf: Unter der Ampel öffnet sich das Fenster. Ganz oben siehst du die
+  Ampel der aktuellen Seite und direkt daneben den Knopf "Prüfen".
+- "Prüfen" tippen. Während der Prüfung blinkt die Ampel rot-gelb-grün.
+  Du kannst das Fenster schließen, die Prüfung läuft weiter.
+- Danach leuchtet die Ampel in der Farbe des Ergebnisses. Kommst du später auf
+  dieselbe Seite zurück, zeigt sie das Ergebnis sofort wieder an.
+
+MARKIERUNGEN IM ARTIKEL
+- Nach der Prüfung werden die geprüften Sätze direkt im Artikel unterstrichen:
+  rot = falsch, gelb = irreführend, grün = wahr, grau gestrichelt = unklar.
+- Maus über eine Markierung: Urteil, Begründung und Quellen erscheinen.
+  Klick darauf: das Kästchen bleibt offen, damit du die Quellen anklicken kannst.
+- Unten rechts zeigt eine Leiste die Ampel, den Punktwert und wie viele Aussagen
+  markiert sind. "Ausblenden" entfernt die Markierungen.
+- Im Fenster hat jede Aussage den Knopf "Im Text zeigen": springt zur Stelle.
+- Der Schalter "Aussagen im Artikel farbig markieren" im Fenster schaltet das an/aus.
+- Markierungen gibt es nur bei der Prüfung im Fenster (API-Schlüssel),
+  nicht beim kostenlosen Weg über das Claude-Artefakt.
+
+TIPP FÜR DIE PRÄSENTATION
+- Prüfe deine Demo-Artikel vorher (z. B. einen roten, gelben, grünen).
+  In der Präsentation einfach die Seite öffnen: Ampel und Markierungen
+  erscheinen sofort, ohne Wartezeit und ohne neue Kosten.
+
+ZWEI WEGE ZU PRÜFEN
+A) Im Fenster (API-Schlüssel, kostet ca. 3–25 Cent pro Prüfung)
+   1. Auf https://platform.claude.com anmelden, unter "Billing" Guthaben aufladen (z. B. 5 $).
+   2. Unter "API Keys" einen Schlüssel erstellen.
+   3. Im Fenster auf das Zahnrad klicken, Schlüssel einfügen, Speichern.
+B) Kostenlos mit deinem Claude-Abo
+   Knopf "Kostenlos mit Claude-Abo prüfen": Der Link wird kopiert und dein
+   Faktencheck-Artefakt auf claude.ai öffnet sich. Dort einfügen und prüfen.
+   (Die Ampel in der Symbolleiste färbt sich bei diesem Weg nicht.)
+
+DATENSCHUTZ
+- Der API-Schlüssel bleibt nur in diesem Browser gespeichert.
+- Die Erweiterung liest eine Seite nur, wenn du auf "Prüfen" tippst, und schickt
+  den Text nur an die Claude API von Anthropic.
