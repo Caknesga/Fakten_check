@@ -68,8 +68,19 @@ async function popupFixture({ loading = false } = {}) {
   const changes = [];
   let requests = 0;
   let checks = 0;
+  let now = 0;
+  const timers = [];
+  class FakeDate extends Date { static now() { return now; } }
+  const publishReport = () => {
+    const report = worker.check({ url: worker.entry.url, text: worker.entry.claims[0].quote });
+    for (const handler of changes) handler({ job: { newValue: {
+      status: "done", url: worker.entry.url, report,
+      log: [{ m: "Demo-Prüfung abgeschlossen" }]
+    } } }, "local");
+  };
   const context = vm.createContext({
-    URL, console,
+    URL, console, Date: FakeDate,
+    setTimeout: (callback, delay) => { timers.push({ callback, at: now + delay }); return timers.length; },
     document: {
       getElementById: id => ids.get(id) || null,
       createElement: () => new Element(),
@@ -112,12 +123,21 @@ async function popupFixture({ loading = false } = {}) {
   await new Promise(resolve => setImmediate(resolve));
   return {
     ids, requests: () => requests, checks: () => checks,
+    publishReport,
+    advance: ms => {
+      now += ms;
+      for (const timer of timers.splice(0)) {
+        if (timer.at <= now) timer.callback();
+        else timers.push(timer);
+      }
+    },
     submit: () => ids.get("form").listeners.submit({ preventDefault() {} })
   };
 }
 
 test("popup starts with the real HTML and renders a completed active-tab demo", async () => {
   const popup = await popupFixture();
+  popup.advance(3000);
   assert.match(popup.ids.get("url").value, /spiegel\.de/);
   assert.equal(popup.ids.get("go").disabled, false);
   await popup.submit();
@@ -213,13 +233,30 @@ test("loading a demo opens the popup before the check and updates results automa
   assert.equal(fixture.popups.length, 2);
 });
 
-test("first popup shows the prepared demo verdict for a loading page without a button click", async () => {
+test("first popup loads for three seconds then reveals the demo verdict automatically", async () => {
   const fixture = await popupFixture({ loading: true });
   assert.match(fixture.ids.get("url").value, /spiegel\.de/);
+  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
+  assert.equal(fixture.ids.get("result").children.length, 0);
+  assert.equal(fixture.ids.get("go").disabled, true);
+  fixture.advance(2999);
+  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
+  fixture.advance(1);
   assert.equal(fixture.ids.get("hudLabel").textContent, "Grün");
   assert.match(fixture.ids.get("modeNote").textContent, /Vorbereitete Demo-Bewertung/);
   assert.ok(fixture.ids.get("result").children.length);
   assert.equal(fixture.checks(), 0);
+});
+
+test("fast background results stay hidden until the demo loading interval ends", async () => {
+  const fixture = await popupFixture();
+  fixture.publishReport();
+  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
+  assert.equal(fixture.ids.get("result").children.length, 0);
+  fixture.advance(3000);
+  assert.equal(fixture.ids.get("hudLabel").textContent, "Grün");
+  assert.ok(fixture.ids.get("result").children.length);
+  assert.equal(fixture.ids.get("go").disabled, false);
 });
 
 test("activating an already loaded demo triggers a check", async () => {

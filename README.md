@@ -36,7 +36,8 @@ faktencheck-ampel/
 4. Pin "Faktencheck Ampel" via the puzzle icon.
 5. Use Chrome 127 or newer and allow the extension's requested Spiegel access.
 6. Open an article whose URL is listed in `demo-cases.js`. The popup opens as soon
-   as navigation starts and immediately shows the prepared demo verdict. This
+   as navigation starts, shows a simulated loading state for about three seconds,
+   then reveals the prepared demo verdict or the completed check result. This
    initial rating is labelled as a demo preview, not a completed article check.
    Once the article loads, its text is checked automatically and the popup updates
    with the matching claims or an error if the prepared quotes are absent.

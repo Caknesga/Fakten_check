@@ -114,6 +114,13 @@ function srcCol(cls,title,items){
 const ORIGINS={origins:["http://*/*","https://*/*"]};
 const normUrl=u=>{const x=safeUrl(u);if(!x)return null;x.hash="";return x.href.replace(/\/$/,"");};
 let tab=null, mode="url", state={job:null,cache:{}}, local=null, marksOn=true;
+const demoRevealAt=Date.now()+3000;
+let demoRevealTimer=null;
+
+function demoLoading(){
+  const url=mode==="url"&&normUrl($("url").value.trim());
+  return Date.now()<demoRevealAt&&!!url&&DEMO_CASES.some(entry=>normUrl(entry.url)===url);
+}
 
 function demoPreview(url){
   const demo=DEMO_CASES.find(entry=>normUrl(entry.url)===url);
@@ -131,11 +138,11 @@ function setMode(m){mode=m;$("tab-url").setAttribute("aria-selected",m==="url");
 $("tab-url").onclick=()=>setMode("url");
 $("tab-text").onclick=()=>setMode("text");
 
-function running(){return !!local||state.job?.status==="running";}
+function running(){return demoLoading()||!!local||state.job?.status==="running";}
 function updateButtons(){
   const run=running();
   $("go").disabled=run;
-  $("stop").hidden=!run;
+  $("stop").hidden=demoLoading()||!run;
   const n=$("modeNote");
   n.textContent="Demo-Prüfung für ausgewählte Artikel.";
 }
@@ -152,6 +159,15 @@ function showError(msg){const p=document.createElement("p");p.className="note wa
 /* decide what the popup shows */
 function paint(){
   updateButtons();
+  if(demoLoading()){
+    if(demoRevealTimer===null)demoRevealTimer=setTimeout(()=>{
+      demoRevealTimer=null;paint();
+    },demoRevealAt-Date.now());
+    setHud("run");
+    paintLog([{m:"Demo-Prüfung wird vorbereitet …",c:"on"}],true);
+    $("result").replaceChildren();
+    return;
+  }
   const job=state.job;
   if(local){paintLog(local,true);setHud("run");$("result").replaceChildren();return;}
   if(job&&job.status==="running"){paintLog(job.log,true);setHud("run");$("result").replaceChildren();return;}
