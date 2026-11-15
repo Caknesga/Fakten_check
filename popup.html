@@ -229,33 +229,8 @@ h1{font-size:28px}
     </div>
     <div class="topright">
       <span class="badge">Prototyp</span>
-      <button class="iconbtn" id="gear" type="button" aria-expanded="false" aria-controls="settings" title="Einstellungen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-      </button>
     </div>
   </header>
-
-  <section class="settings" id="settings" hidden>
-    <h2>Einrichtung</h2>
-    <p>Die Prüfung im Fenster nutzt die Claude API mit eingebauter Websuche. Dafür brauchst du einen eigenen API-Schlüssel. Er bleibt nur in diesem Browser gespeichert.</p>
-    <ol>
-      <li>Auf <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com</a> anmelden und Guthaben aufladen (z. B. 5 $).</li>
-      <li>Unter „API Keys“ einen Schlüssel erstellen und kopieren.</li>
-      <li>Hier einfügen und speichern.</li>
-    </ol>
-    <label for="apiKey">API-Schlüssel
-      <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
-    </label>
-    <label for="model">Modell
-      <select id="model">
-        <option value="claude-sonnet-5-5">Sonnet 5.5 · gründlich · ca. 10–25 ct</option>
-        <option value="claude-haiku-5-5">Haiku 5.5 · günstig · ca. 3–8 ct</option>
-      </select>
-    </label>
-    <button class="btn" id="save" type="button">Speichern</button>
-    <span class="saved" id="saved" hidden>Gespeichert.</span>
-    <p>Ohne Schlüssel kannst du unten kostenlos über dein Claude-Abo prüfen.</p>
-  </section>
 
   <section class="hud" aria-label="Prüfung">
     <div class="hud-main">
@@ -272,7 +247,7 @@ h1{font-size:28px}
     </div>
     <div class="tabs" role="tablist">
       <button class="tab" id="tab-url" role="tab" aria-selected="true">Link prüfen</button>
-      <button class="tab" id="tab-text" role="tab" aria-selected="false">Text einfügen</button>
+      <button class="tab" id="tab-text" role="tab" aria-selected="false" disabled title="Die Demo benötigt einen hinterlegten Artikel-Link.">Text einfügen (bald)</button>
     </div>
     <form id="form" class="row">
       <label class="field" id="urlField">
@@ -281,27 +256,23 @@ h1{font-size:28px}
       </label>
       <textarea id="text" placeholder="Artikeltext hier einfügen …" aria-label="Artikeltext" hidden></textarea>
     </form>
-    <p class="note" id="modeNote">Die Prüfung läuft weiter, auch wenn du dieses Fenster schließt.</p>
+    <p class="note" id="modeNote">Demo-Prüfung für ausgewählte Artikel.</p>
+    <label class="switch"><input type="checkbox" id="marks" checked><span class="knob" aria-hidden="true"></span>Aussagen im Artikel markieren</label>
     <div class="log" id="log" hidden></div>
   </section>
 
-  <section class="opts" aria-label="Optionen">
-    <label class="switch" for="marks"><input type="checkbox" id="marks" checked><span class="knob" aria-hidden="true"></span>Aussagen im Artikel farbig markieren</label>
-    <div class="free">
-      <button class="btn ghost" id="free" type="button">Kostenlos mit Claude-Abo prüfen</button>
-      <span id="freeNote">Kopiert den Link und öffnet dein Faktencheck-Artefakt auf claude.ai. Dort nur noch einfügen.</span>
-    </div>
-  </section>
+
 
   <section id="result" aria-live="polite"></section>
 
   <footer>
-    <span>Automatische Einschätzung, erstellt von Claude auf Basis live gefundener Quellen. Sie kann Fehler enthalten.</span>
+    <span>Demo: Manuell vorbereitete Bewertungen aus demo-cases.js. Keine Live-Recherche.</span>
     <span>Prüfe wichtige Aussagen selbst anhand der verlinkten Originalquellen.</span>
   </footer>
 </div>
 
 
+<script src="demo-cases.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

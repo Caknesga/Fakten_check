@@ -111,47 +111,35 @@ function srcCol(cls,title,items){
 
 
 /* ---------- popup ---------- */
-const ARTIFACT_URL="https://claude.ai/artifact/7qxmZ7r3xAYUiXPkKHtxqT";
 const ORIGINS={origins:["http://*/*","https://*/*"]};
-const MODELS=["claude-sonnet-5-5","claude-haiku-5-5"];
 const normUrl=u=>{const x=safeUrl(u);if(!x)return null;x.hash="";return x.href.replace(/\/$/,"");};
-let cfg={apiKey:"",model:MODELS[0]}, tab=null, mode="url", state={job:null,cache:{}}, local=null, marksOn=true;
+let tab=null, mode="url", state={job:null,cache:{}}, local=null, marksOn=true;
 
-/* settings */
-function openSettings(open){$("settings").hidden=!open;$("gear").setAttribute("aria-expanded",open);if(open)$("saved").hidden=true;}
-$("gear").onclick=()=>openSettings($("settings").hidden);
-$("save").onclick=async()=>{
-  const k=$("apiKey").value.trim();
-  if(k&&!/^sk-ant-/.test(k)){$("saved").hidden=false;$("saved").style.color="var(--false)";$("saved").textContent="Das sieht nicht wie ein Anthropic-Schlüssel aus (beginnt mit „sk-ant-“).";return;}
-  cfg={apiKey:k,model:$("model").value};
-  try{await chrome.storage.local.set(cfg);}catch{}
-  $("saved").hidden=false;$("saved").style.color="";$("saved").textContent=k?"Gespeichert.":"Schlüssel entfernt.";
-  updateButtons();
-  if(k)setTimeout(()=>openSettings(false),700);
-};
+function demoPreview(url){
+  const demo=DEMO_CASES.find(entry=>normUrl(entry.url)===url);
+  if(!demo)return null;
+  return {
+    source:demo.url, title:"Vorbereitete Demo-Bewertung", live:false,
+    summary:"Bewertung aus den Demo-Daten. Der Abgleich mit dem Artikeltext startet automatisch, sobald die Seite geladen ist.",
+    claims:demo.claims.map(c=>({...c,claim:c.quote,supporting:c.supporting||[],contradicting:c.contradicting||[]})),
+    allSources:[]
+  };
+}
 
 /* tabs */
 function setMode(m){mode=m;$("tab-url").setAttribute("aria-selected",m==="url");$("tab-text").setAttribute("aria-selected",m==="text");$("urlField").hidden=m!=="url";$("text").hidden=m!=="text";paint();}
 $("tab-url").onclick=()=>setMode("url");
 $("tab-text").onclick=()=>setMode("text");
 
-/* free route: open the artifact with the user's Claude plan */
-$("free").onclick=async()=>{
-  const u=$("url").value.trim();
-  let copied=false;
-  if(u){try{await navigator.clipboard.writeText(u);copied=true;}catch{}}
-  $("freeNote").textContent=copied?"Link kopiert. Im Artefakt einfügen und auf „Prüfen“ tippen.":"Öffne dein Faktencheck-Artefakt auf claude.ai.";
-  chrome.tabs.create({url:ARTIFACT_URL});
-};
-
-function running(){return !!local||(state.job&&state.job.status==="running");}
+function running(){return !!local||state.job?.status==="running";}
 function updateButtons(){
   const run=running();
-  $("go").disabled=run||!cfg.apiKey;$("stop").hidden=!run;
+  $("go").disabled=run;
+  $("stop").hidden=!run;
   const n=$("modeNote");
-  if(!cfg.apiKey){n.textContent="Für die Prüfung im Fenster brauchst du einen API-Schlüssel (Zahnrad oben). Kostenlos geht es über den Knopf weiter unten.";n.className="note warn";}
-  else{n.textContent="Die Prüfung läuft weiter, auch wenn du dieses Fenster schließt.";n.className="note";}
+  n.textContent="Demo-Prüfung für ausgewählte Artikel.";
 }
+
 function paintLog(entries,live){
   const l=$("log");
   if(!entries||!entries.length){l.replaceChildren();l.hidden=true;return;}
@@ -174,6 +162,12 @@ function paint(){
   paintLog(null);
   const cached=cur&&state.cache[cur];
   if(cached){setHud("done",cached);showReport(cached,null);return;}
+  const preview=cur&&demoPreview(cur);
+  if(preview){
+    setHud("done",preview);render(preview,true);
+    $("modeNote").textContent="Vorbereitete Demo-Bewertung · Artikelabgleich läuft automatisch.";
+    return;
+  }
   setHud("idle");
   $("result").replaceChildren();
 }
@@ -194,7 +188,7 @@ function setHud(kind,rep){
   lamp.querySelectorAll("i").forEach(i=>i.classList.remove("on"));
   const host=(()=>{const u=safeUrl($("url").value.trim());return u?u.hostname.replace(/^www\./,""):"";})();
   if(kind!=="done")$("hudLabel").style.color="";
-  if(kind==="run"){$("hudLabel").textContent="Prüfung läuft";$("hudTitle").textContent="Quellen werden gesucht …";$("hudSub").textContent=host;lamp.setAttribute("aria-label","Ampel: Prüfung läuft");return;}
+  if(kind==="run"){$("hudLabel").textContent="Prüfung läuft";$("hudTitle").textContent="Artikel wird automatisch abgeglichen …";$("hudSub").textContent=host;lamp.setAttribute("aria-label","Ampel: Prüfung läuft");return;}
   if(kind==="error"){$("hudLabel").textContent="Abgebrochen";$("hudTitle").textContent="Bitte erneut prüfen";$("hudSub").textContent=host;lamp.setAttribute("aria-label","Ampel: keine Bewertung");return;}
   if(kind==="done"){
     const {l,name}=lightOf(rep);lamp.querySelector("i."+l).classList.add("on");
@@ -213,7 +207,7 @@ function setHud(kind,rep){
 
 /* show a report, plus "Im Text zeigen" when it belongs to the open tab */
 function showReport(rep,found){
-  render(rep);
+  render(rep,true);
   if(!marksOn||!tab||!tab.url||normUrl(rep.source)!==normUrl(tab.url))return;
   document.querySelectorAll("#result .claim-head").forEach((head,i)=>{
     if(!rep.claims[i])return;
@@ -272,9 +266,7 @@ $("stop").onclick=()=>chrome.runtime.sendMessage({type:"stop"});
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();
   if(running())return;
-  if(!cfg.apiKey){openSettings(true);return;}
   let u=$("url").value.trim();
-  const permP=mode==="url"?chrome.permissions.request(ORIGINS):Promise.resolve(true);   // must start inside the click
   local=[{m:"Lese die Seite",c:"on"}];paint();
   try{
     let page;
@@ -282,7 +274,8 @@ $("form").addEventListener("submit",async e=>{
       if(!u){$("url").focus();throw{message:"Bitte einen Link eingeben."};}
       if(!/^https?:\/\//i.test(u))u="https://"+u;
       if(!safeUrl(u))throw{message:"Das ist kein gültiger Link."};
-      if(!(await permP))throw{message:"Ohne Leserecht für Webseiten kann die Erweiterung die Seite nicht lesen. Tippe erneut auf „Prüfen“ und erlaube den Zugriff."};
+      // Request access within the submit gesture; activeTab already covers the open page.
+      if(!sameAsTab(u)&&!(await chrome.permissions.request(ORIGINS)))throw{message:"Ohne Leserecht für Webseiten kann die Erweiterung die Seite nicht lesen. Tippe erneut auf „Prüfen“ und erlaube den Zugriff."};
       if(sameAsTab(u)){
         try{page=await readTab();}catch(err){throw{message:"Diese Seite kann nicht gelesen werden (z. B. Chrome-Einstellungen). Lade sie neu und versuch es erneut."};}
       }else page=await fetchUrl(u);
@@ -294,7 +287,7 @@ $("form").addEventListener("submit",async e=>{
     }
     const r=await chrome.runtime.sendMessage({type:"check",page,tabId:tab&&tab.id,log:["Seite gelesen: "+(page.title||"").slice(0,60)]});
     if(!r||!r.ok)throw{message:(r&&r.error)||"Die Prüfung konnte nicht gestartet werden."};
-    local=null;
+    local=null;paint();
   }catch(err){
     local=null;paint();showError(err&&err.message||"Unbekannter Fehler.");
   }
@@ -311,15 +304,14 @@ chrome.storage.onChanged.addListener((ch,area)=>{
 /* start */
 (async()=>{
   try{
-    const s=await chrome.storage.local.get(["apiKey","model","job","cache","marksOn"]);
+    const s=await chrome.storage.local.get(["job","cache","marksOn"]);
     marksOn=s.marksOn!==false;
-    cfg={apiKey:s.apiKey||"",model:MODELS.includes(s.model)?s.model:MODELS[0]};
     state={job:s.job||null,cache:s.cache||{}};
   }catch{}
-  $("apiKey").value=cfg.apiKey;$("model").value=cfg.model;$("marks").checked=marksOn;
+  $("marks").checked=marksOn;
   try{[tab]=await chrome.tabs.query({active:true,currentWindow:true});}catch{}
-  if(tab&&tab.url&&safeUrl(tab.url))$("url").value=tab.url;
+  const currentUrl=tab&&(tab.pendingUrl||tab.url);
+  if(safeUrl(currentUrl))$("url").value=currentUrl;
   $("url").addEventListener("input",()=>paint());
-  if(!cfg.apiKey)openSettings(true);
   paint();
 })();
