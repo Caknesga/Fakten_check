@@ -38,7 +38,7 @@ function render(rep,isSample){
   const out=document.createDocumentFragment();
   const v=el("div","verdict");
   const vh=el("div","vhead");
-  vh.append(el("span","eyebrow",isSample?"Beispiel · Gesamteinschätzung der Seite":"Gesamteinschätzung der Seite"));
+  vh.append(el("span","eyebrow",isSample?" Gesamteinschätzung der Seite":"Gesamteinschätzung der Seite"));
   if(running)vh.append(el("span","when","Prüfung läuft"));
   else if(rep.checkedAt){const d=new Date(rep.checkedAt);vh.append(el("span","when","Geprüft am "+d.toLocaleDateString("de-DE")+", "+d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr"));}
   v.append(vh);
@@ -81,7 +81,6 @@ function render(rep,isSample){
     if(pending)top.append(el("span","chip t-unklar","wird geprüft"));
     else top.append(el("span","chip t-"+nv,LABEL[nv]+(c.confidence!=null&&!isNaN(+c.confidence)?" · "+Math.round(+c.confidence)+" %":"")));
     head.append(top,el("h3",null,c.claim||""));
-    if(c.quote)head.append(el("p","quote","„"+c.quote+"“"));
     if(c.explanation)head.append(el("p","expl",c.explanation));
     card.append(head);
     if(!pending){
@@ -112,7 +111,13 @@ function srcCol(cls,title,items){
 
 /* ---------- popup ---------- */
 const ORIGINS={origins:["http://*/*","https://*/*"]};
-const normUrl=u=>{const x=safeUrl(u);if(!x)return null;x.hash="";return x.href.replace(/\/$/,"");};
+const normUrl=u=>{
+  const x=safeUrl(u);if(!x)return null;x.hash="";
+  for(const key of [...x.searchParams.keys()]){
+    if(/^utm_/i.test(key)||/^(fbclid|gclid)$/i.test(key))x.searchParams.delete(key);
+  }
+  return x.href.replace(/\/$/,"");
+};
 let tab=null, mode="url", state={job:null,cache:{}}, local=null, marksOn=true;
 const demoRevealAt=Date.now()+3000;
 let demoRevealTimer=null;
@@ -127,7 +132,7 @@ function demoPreview(url){
   if(!demo)return null;
   return {
     source:demo.url, title:"Vorbereitete Demo-Bewertung", live:false,
-    summary:"Bewertung aus den Demo-Daten. Der Abgleich mit dem Artikeltext startet automatisch, sobald die Seite geladen ist.",
+    summary:"Der Abgleich mit dem Artikeltext startet automatisch, sobald die Seite geladen ist.",
     claims:demo.claims.map(c=>({...c,claim:c.quote,supporting:c.supporting||[],contradicting:c.contradicting||[]})),
     allSources:[]
   };
@@ -229,10 +234,10 @@ function showReport(rep,found){
     if(!rep.claims[i])return;
     const b=document.createElement("button");b.type="button";b.className="locate";
     const miss=Array.isArray(found)&&found[i]===false;
-    b.textContent=miss?"Stelle im Text nicht gefunden":"↓ Im Text zeigen";b.disabled=miss;
+    b.textContent=miss?"Stelle im Text erneut suchen":"↓ Im Text zeigen";
     b.onclick=async()=>{
       const r=await chrome.runtime.sendMessage({type:"focus",tabId:tab.id,i}).catch(()=>null);
-      if(r&&r.ok){window.close();}else{b.textContent="Stelle im Text nicht gefunden";b.disabled=true;}
+      if(r&&r.ok){window.close();}else{b.textContent="Noch nicht gefunden · erneut suchen";}
     };
     head.append(b);
   });
@@ -254,14 +259,10 @@ $("marks").addEventListener("change",async()=>{
 /* read the page */
 function sameAsTab(u){return tab&&tab.url&&normUrl(tab.url)===normUrl(u);}
 async function readTab(){
-  const [{result:res}]=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>{
-    const clean=t=>String(t||"").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
-    const cands=[...document.querySelectorAll("article, main, [role=main]")].map(e=>clean(e.innerText)).sort((a,b)=>b.length-a.length);
-    let text=cands[0]||"";
-    if(text.length<600)text=clean(document.body&&document.body.innerText);
-    const desc=(document.querySelector('meta[name="description"],meta[property="og:description"]')||{}).content||"";
-    return {title:document.title,url:location.href,text:text.slice(0,30000),desc:String(desc).slice(0,400)};
-  }});
+  const demo=DEMO_CASES.find(entry=>normUrl(entry.url)===normUrl(tab.url));
+  const [{result:res}]=await chrome.scripting.executeScript({
+    target:{tabId:tab.id},func:readDemoPage,args:[demo?demo.claims.map(claim=>claim.quote):[]]
+  });
   return res;
 }
 async function fetchUrl(u){
@@ -295,7 +296,7 @@ $("form").addEventListener("submit",async e=>{
       if(sameAsTab(u)){
         try{page=await readTab();}catch(err){throw{message:"Diese Seite kann nicht gelesen werden (z. B. Chrome-Einstellungen). Lade sie neu und versuch es erneut."};}
       }else page=await fetchUrl(u);
-      if(!page||page.text.length<200)throw{message:"Auf dieser Seite wurde kaum Text gefunden. Öffne einen Artikel mit Text und versuch es erneut."};
+      if(!page||!page.text.trim())throw{message:"Auf dieser Seite wurde kein Text gefunden. Öffne den Artikel oder Beitrag und versuch es erneut."};
     }else{
       const t=$("text").value.trim();
       if(t.length<40){$("text").focus();throw{message:"Bitte einen längeren Text einfügen."};}
@@ -327,7 +328,10 @@ chrome.storage.onChanged.addListener((ch,area)=>{
   $("marks").checked=marksOn;
   try{[tab]=await chrome.tabs.query({active:true,currentWindow:true});}catch{}
   const currentUrl=tab&&(tab.pendingUrl||tab.url);
-  if(safeUrl(currentUrl))$("url").value=currentUrl;
+  if(safeUrl(currentUrl)){
+    tab={...tab,url:currentUrl};
+    $("url").value=currentUrl;
+  }
   $("url").addEventListener("input",()=>paint());
   paint();
 })();

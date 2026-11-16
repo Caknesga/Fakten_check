@@ -2,13 +2,14 @@
    Wird von der Erweiterung in die geprüfte Seite eingefügt. Findet die zitierten Stellen,
    unterstreicht sie in Ampelfarben und zeigt beim Darüberfahren Urteil und Quellen. */
 (() => {
-  if (globalThis.__fc) return;
+  if (globalThis.__fc?.version === 2) return;
+  globalThis.__fc?.clear();
 
   const COLORS = {
     falsch:       { line: "#d93025", bg: "rgba(229,56,59,.16)",  label: "Falsch" },
     irrefuehrend: { line: "#e0a100", bg: "rgba(244,180,0,.20)",  label: "Irreführend" },
     wahr:         { line: "#1e9e55", bg: "rgba(47,179,94,.15)",  label: "Wahr" },
-    unklar:       { line: "#7a8599", bg: "rgba(122,133,153,.14)", label: "Unklar" }
+    unklar:       { line: "#e0a100", bg: "rgba(244,180,0,.20)", label: "Unklar" }
   };
   const LIGHT = { r: "#e5383b", y: "#f4b400", g: "#2fb35e" };
   const normV = v => { v = String(v || "").toLowerCase().replace("ü", "ue");
@@ -18,8 +19,7 @@
 
   /* ---------- page styles for the marks (custom tag, so page CSS rarely touches it) ---------- */
   function ensureStyle() {
-    if (document.getElementById("__fc-style")) return;
-    const st = document.createElement("style"); st.id = "__fc-style";
+    const st = document.getElementById("__fc-style") || document.createElement("style"); st.id = "__fc-style";
     st.textContent = Object.entries(COLORS).map(([k, c]) =>
       `fc-mark[data-v="${k}"]{background:${c.bg};border-bottom:2.5px solid ${c.line};}`).join("\n") +
       `fc-mark{display:inline;cursor:help;border-radius:2px;padding:0 1px;color:inherit;font:inherit;transition:box-shadow .2s;}
@@ -45,7 +45,16 @@
   function buildIndex() {
     let text = "", map = [], sp = true, lastBlock = null;
     const hidden = new WeakMap();
-    const isHidden = el => { if (hidden.has(el)) return hidden.get(el); const h = el.getClientRects().length === 0; hidden.set(el, h); return h; };
+    const isHidden = el => {
+      if (!el) return false;
+      if (hidden.has(el)) return hidden.get(el);
+      const style = getComputedStyle(el);
+      // display:contents has no rectangle, although its text is visible.
+      const h = style.display === "none" || style.visibility === "hidden" ||
+        style.visibility === "collapse" || isHidden(el.parentElement);
+      hidden.set(el, h);
+      return h;
+    };
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode(n) { const p = n.parentElement; if (!p || p.closest(SKIP) || isHidden(p)) return NodeFilter.FILTER_REJECT; return NodeFilter.FILTER_ACCEPT; }
     });
@@ -113,6 +122,19 @@
 
   /* ---------- tooltip + summary pill (shadow DOM, isolated from page CSS) ---------- */
   let ui = null, report = null, pinned = false, hideT = null;
+  let markObserver = null, markRetry = null;
+
+  function watchMarks() {
+    markObserver = new MutationObserver(() => {
+      if (!report || markRetry !== null) return;
+      if (report.claims.every((_, i) => document.querySelector(`fc-mark[data-i="${i}"]`))) return;
+      markRetry = setTimeout(() => {
+        markRetry = null;
+        if (report) apply(report);
+      }, 200);
+    });
+    markObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
   function ensureUi() {
     if (ui) return ui;
     const hostEl = document.createElement("fc-ui");
@@ -191,6 +213,8 @@
   }
 
   function clear() {
+    markObserver?.disconnect(); markObserver = null;
+    clearTimeout(markRetry); markRetry = null;
     document.querySelectorAll("fc-mark").forEach(m => { const p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); p.normalize(); });
     if (ui) { ui.tip.classList.remove("on"); ui.pill.hidden = true; }
     document.removeEventListener("mouseover", onOver, true); document.removeEventListener("mouseout", onOut, true); document.removeEventListener("click", onClick, true);
@@ -206,6 +230,7 @@
     });
     document.addEventListener("mouseover", onOver, true); document.addEventListener("mouseout", onOut, true); document.addEventListener("click", onClick, true);
     showPill(found.filter(Boolean).length);
+    watchMarks();
     return found;
   }
 
@@ -217,5 +242,5 @@
     return true;
   }
 
-  globalThis.__fc = { apply, clear, focus, active: () => !!report };
+  globalThis.__fc = { version: 2, apply, clear, focus, active: () => !!report };
 })();

@@ -1,6 +1,6 @@
 "use strict";
 
-importScripts("demo-cases.js");
+importScripts("demo-cases.js", "page-reader.js");
 
 const LIGHT_NAME = { r: "Rot", y: "Gelb", g: "Grün" };
 const BRIGHT = { r: "#e5383b", y: "#f4b400", g: "#2fb35e" };
@@ -11,6 +11,7 @@ let controller = null;
 const autoQueue = new Map();
 const autoChecked = new Map();
 const openedPopups = new Map();
+const highlightRevealAt = new Map();
 let draining = false;
 
 function isDemoUrl(value) {
@@ -28,6 +29,9 @@ async function openResultPopup(tabId, source, waitForLoad = true) {
         normUrl(tab.pendingUrl || tab.url) !== url) return;
     if (openedPopups.get(tabId) === url) return;
     openedPopups.set(tabId, url);
+    highlightRevealAt.set(tabId, { url, at: Date.now() + 3000 });
+    // Hide marks left from an earlier visit while the popup shows its loading state.
+    await clearMarks(tabId);
     try {
       await chrome.action.openPopup({ windowId: tab.windowId });
     } catch (error) {
@@ -61,15 +65,8 @@ async function drainAutomaticChecks() {
             autoChecked.get(tabId) === url) continue;
         const [{ result: page }] = await chrome.scripting.executeScript({
           target: { tabId },
-          func: () => {
-            const clean = text => String(text || "").replace(/[ \t]+\n/g, "\n")
-              .replace(/\n{3,}/g, "\n\n").trim();
-            const candidates = [...document.querySelectorAll("article, main, [role=main]")]
-              .map(node => clean(node.innerText)).sort((a, b) => b.length - a.length);
-            let text = candidates[0] || "";
-            if (text.length < 600) text = clean(document.body?.innerText);
-            return { title: document.title, url: location.href, text: text.slice(0, 30000) };
-          }
+          func: readDemoPage,
+          args: [DEMO_CASES.find(entry => normUrl(entry.url) === url).claims.map(claim => claim.quote)]
         });
         if (running) {
           autoQueue.set(tabId, url);
@@ -100,11 +97,17 @@ function normUrl(value) {
   const url = safeUrl(value);
   if (!url) return null;
   url.hash = "";
+  for (const key of [...url.searchParams.keys()]) {
+    if (/^utm_/i.test(key) || /^(fbclid|gclid)$/i.test(key)) url.searchParams.delete(key);
+  }
   return url.href.replace(/\/$/, "");
 }
 
 function normalizeText(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "").normalize("NFC")
+    .replace(/[\u00ad\u200b-\u200d\ufeff]/g, "")
+    .replace(/…/g, "...").replace(/\s*\.{3}/g, "...")
+    .replace(/[‐‑‒–—―−]/g, "-").replace(/\s+/g, " ").trim();
 }
 
 function checkDemo(page) {
@@ -120,14 +123,17 @@ function checkDemo(page) {
   const segmenter = new Intl.Segmenter("de", { granularity: "sentence" });
   const sentences = new Set();
 
-  for (const line of String(page.text ?? "").split(/\r?\n/)) {
+  // Keep caption lines as candidates, and also join wrapped article sentences.
+  for (const line of [String(page.text ?? ""), ...String(page.text ?? "").split(/\r?\n/)]) {
     for (const { segment } of segmenter.segment(normalizeText(line))) {
       sentences.add(normalizeText(segment));
     }
   }
-
   const claims = demo.claims
-    .filter(entry => sentences.has(normalizeText(entry.quote)))
+    .filter(entry => {
+      const quote = normalizeText(entry.quote);
+      return quote && sentences.has(quote);
+    })
     .map(entry => ({
       ...entry,
       claim: entry.quote,
@@ -136,7 +142,7 @@ function checkDemo(page) {
     }));
 
   if (!claims.length) {
-    throw new Error("Die vorbereiteten Aussagen wurden im Artikel nicht gefunden.");
+    throw new Error("Die vorbereiteten Aussagen wurden im sichtbaren Seitentext nicht gefunden. Bitte prüfe, ob ein Login, eine Einwilligung oder eine Bezahlschranke den Text verdeckt.");
   }
 
   const sources = claims.flatMap(claim => [
@@ -149,9 +155,6 @@ function checkDemo(page) {
   return {
     title: page.title,
     source: page.url,
-    summary: partial
-      ? "Nur ein Teil der vorbereiteten Aussagen wurde im Artikel gefunden."
-      : "Manuell vorbereitete Prüfung ausgewählter Aussagen.",
     overall: partial
       ? { rating: "gemischt", headline: "Nur teilweise geprüft" }
       : null,
@@ -223,6 +226,14 @@ async function applyMarks(tabId, report) {
   if (tabId == null || !report?.source) return null;
 
   try {
+    // Keep website highlights behind the same demo loading interval as the popup.
+    for (;;) {
+      const reveal = highlightRevealAt.get(tabId);
+      const remaining = reveal?.url === normUrl(report.source) ? reveal.at - Date.now() : 0;
+      if (remaining <= 0) break;
+      await new Promise(resolve => setTimeout(resolve, remaining));
+    }
+    if (!(await marksOn())) return null;
     const tab = await chrome.tabs.get(tabId);
     if (normUrl(tab.url) !== normUrl(report.source)) return null;
 
@@ -258,13 +269,21 @@ async function clearMarks(tabId) {
 
 async function focusMark(tabId, index) {
   try {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: i => globalThis.__fc?.focus(i) ?? false,
-      args: [index]
-    });
-
-    return result;
+    const focus = async () => {
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: i => globalThis.__fc?.focus(i) ?? false,
+        args: [index]
+      });
+      return result;
+    };
+    if (await focus()) return true;
+    const tab = await chrome.tabs.get(tabId);
+    const { cache = {} } = await chrome.storage.local.get("cache");
+    const report = cache[normUrl(tab.url)];
+    if (!report || !(await marksOn())) return false;
+    await applyMarks(tabId, report);
+    return await focus();
   } catch {
     return false;
   }
@@ -334,7 +353,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (tab.active && isDemoUrl(destination)) {
     void openResultPopup(tabId, destination, false);
   }
-  if (changeInfo.status === "complete" && tab.active && isDemoUrl(tab.url)) {
+  if ((changeInfo.status === "complete" || changeInfo.url) && tab.status === "complete" && tab.active && isDemoUrl(tab.url)) {
     queueAutomaticCheck(tab);
     return;
   }
@@ -368,6 +387,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
   autoChecked.delete(tabId);
   autoQueue.delete(tabId);
   openedPopups.delete(tabId);
+  highlightRevealAt.delete(tabId);
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {

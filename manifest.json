@@ -27,7 +27,9 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://www.spiegel.de/*"
+    "https://www.spiegel.de/*",
+    "https://*.facebook.com/*",
+    "https://*.sciencedirect.com/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

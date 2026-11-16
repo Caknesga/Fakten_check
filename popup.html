@@ -12,7 +12,7 @@
   --bg:#f5f6f8; --surface:#ffffff; --sunk:#eef1f5; --ink:#0f1b2d; --muted:#566275; --line:#dde2ea; --line-2:#c9d0db;
   --accent:#1c4fc4; --accent-ink:#ffffff; --accent-soft:#e8eefb;
   --true:#17754a; --true-bg:#e2f2e9; --false:#b3261e; --false-bg:#fbe6e4;
-  --warn:#8f5b00; --warn-bg:#fbf0d8; --unk:#566275; --unk-bg:#eaedf2;
+  --warn:#8f5b00; --warn-bg:#fbf0d8; --unk:var(--warn); --unk-bg:var(--warn-bg);
   --shadow:0 1px 2px rgba(15,27,45,.05),0 10px 28px -16px rgba(15,27,45,.22);
   --display:"Newsreader",Georgia,"Times New Roman",serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -22,13 +22,13 @@
   --bg:#0c111a; --surface:#141b27; --sunk:#0f1520; --ink:#e8ecf3; --muted:#9aa5b8; --line:#253043; --line-2:#334058;
   --accent:#86a8ff; --accent-ink:#0c111a; --accent-soft:#1a2440;
   --true:#5fd197; --true-bg:#122b22; --false:#ff8f86; --false-bg:#36191b;
-  --warn:#f0c063; --warn-bg:#33280f; --unk:#aab3c5; --unk-bg:#1f2736;
+  --warn:#f0c063; --warn-bg:#33280f; --unk:var(--warn); --unk-bg:var(--warn-bg);
   --shadow:0 1px 2px rgba(0,0,0,.35),0 12px 30px -18px rgba(0,0,0,.6); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0c111a; --surface:#141b27; --sunk:#0f1520; --ink:#e8ecf3; --muted:#9aa5b8; --line:#253043; --line-2:#334058;
   --accent:#86a8ff; --accent-ink:#0c111a; --accent-soft:#1a2440;
   --true:#5fd197; --true-bg:#122b22; --false:#ff8f86; --false-bg:#36191b;
-  --warn:#f0c063; --warn-bg:#33280f; --unk:#aab3c5; --unk-bg:#1f2736;
+  --warn:#f0c063; --warn-bg:#33280f; --unk:var(--warn); --unk-bg:var(--warn-bg);
   --shadow:0 1px 2px rgba(0,0,0,.35),0 12px 30px -18px rgba(0,0,0,.6); color-scheme:dark}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body);-webkit-font-smoothing:antialiased}
@@ -161,7 +161,7 @@ footer{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;ga
 
 /* popup sizing and additions */
 html,body{margin:0}
-body{width:420px;max-width:100vw}
+body{width:750px;max-width:97vw}
 .wrap{padding-left:16px;padding-right:16px;gap:16px;padding-block:0 28px}
 .topbar{padding-block:14px 12px}
 .topright{display:flex;gap:8px;align-items:center}
@@ -266,13 +266,13 @@ h1{font-size:28px}
   <section id="result" aria-live="polite"></section>
 
   <footer>
-    <span>Demo: Manuell vorbereitete Bewertungen aus demo-cases.js. Keine Live-Recherche.</span>
     <span>Prüfe wichtige Aussagen selbst anhand der verlinkten Originalquellen.</span>
   </footer>
 </div>
 
 
 <script src="demo-cases.js"></script>
+<script src="page-reader.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

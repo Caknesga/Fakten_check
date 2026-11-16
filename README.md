@@ -34,7 +34,8 @@ faktencheck-ampel/
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the repository folder.
 4. Pin "Faktencheck Ampel" via the puzzle icon.
-5. Use Chrome 127 or newer and allow the extension's requested Spiegel access.
+5. Use Chrome 127 or newer and allow the extension's requested access to Spiegel,
+   Facebook and ScienceDirect.
 6. Open an article whose URL is listed in `demo-cases.js`. The popup opens as soon
    as navigation starts, shows a simulated loading state for about three seconds,
    then reveals the prepared demo verdict or the completed check result. This
@@ -54,7 +55,14 @@ faktencheck-ampel/
   tab and check it there.
 - Each case needs its article's URL and at least one claim. Copy `quote` as a
   complete sentence from the visible article, including punctuation. Whitespace
-  differences are ignored, but changed or unavailable sentences do not match.
+  differences, wrapped lines and equivalent ellipsis/dash characters are ignored,
+  but changed or unavailable sentences do not match. Short standalone video
+  captions are supported too.
+- The shared `page-reader.js` reads article areas and the visible body, including
+  captions outside the main article. It waits up to eight seconds for dynamically
+  inserted text. This is separate from the popup's three-second demo animation.
+- Tracking parameters such as `utm_source` and `fbclid` do not prevent a demo URL
+  from matching. Facebook navigation without a full page reload is also checked.
 - Set `verdict` to `wahr`, `falsch`, `irrefuehrend`, or `unklar`, and provide an
   explanation and real source URLs in `supporting` and `contradicting`. Use `[]`
   when there are no sources; replace the example's placeholder source entries.
@@ -65,7 +73,7 @@ faktencheck-ampel/
 - Other URLs and pasted text are not supported by this demo. If no quotes match,
   check whether the article changed or its text is behind a paywall.
 
-Run the local regression checks with `node --test tests/demo-check.test.cjs`.
+Run the local regression checks with `node --test`.
 
 ## Privacy and security
 - **Never commit an API key.** `.gitignore` excludes `.env` files and `*.key`.
