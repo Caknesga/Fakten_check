@@ -1,0 +1,52 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--background);
+  --background: #f5f7fa;
+  --surface: #fff;
+  --quiet: #eef2f6;
+  --border: #dce3ec;
+  --ink: #162339;
+  --muted: #516076;
+  --link: #244b9d;
+  --green: #19634a;
+  --green-soft: #e8f5ed;
+  --green-light: #37b77f;
+  --yellow: #785000;
+  --yellow-soft: #fff3d4;
+  --yellow-light: #f0b72c;
+  --red: #a32c38;
+  --red-soft: #fff0ee;
+  --red-light: #eb6170;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121822;
+    --surface: #1a2331;
+    --quiet: #242f3e;
+    --border: #303d50;
+    --ink: #edf2f9;
+    --muted: #b4c0d0;
+    --link: #a8c7ff;
+    --green: #92e2b9;
+    --green-soft: #19352d;
+    --yellow: #ffd986;
+    --yellow-soft: #392e1c;
+    --red: #ffb1b4;
+    --red-soft: #3d2430;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+button, input { font: inherit; }
+a { color: var(--link); text-underline-offset: .18em; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+[hidden] { display: none !important; }
+
+[data-tone] { --status-ink: var(--muted); --status-bg: var(--quiet); }
+[data-tone="green"] { --status-ink: var(--green); --status-bg: var(--green-soft); }
+[data-tone="yellow"] { --status-ink: var(--yellow); --status-bg: var(--yellow-soft); }
+[data-tone="red"] { --status-ink: var(--red); --status-bg: var(--red-soft); }

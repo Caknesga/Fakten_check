@@ -1,18 +1,17 @@
-# Faktencheck Ampel
+# BAware
 
-A Chrome extension (Manifest V3) that checks whether the claims on the open web page
-are supported by other, independent sources. The result is shown as a traffic light
-(red / yellow / green) in the toolbar, and the checked sentences are highlighted
-directly in the article.
+A Chrome extension that matches selected claims on demo pages to prepared reviews.
+The popup and toolbar show a traffic light summary. The BAware website lists
+the claims, explanations, and source references for each rating.
 
-> Status: demo prototype. UI language is currently German. Checks use manually
-> prepared verdicts in `demo-cases.js`; there is no live research or API call.
+> Demo prototype. The reviews are prepared in `demo-cases.js` and matched locally
+> to the visible page text.
 
 ## Features
 - Traffic-light icon in the toolbar showing the result for the current page
-- Claim-by-claim verdict: false, misleading, true, unclear, each with explanation and sources
-- Highlights in the article (hover for verdict and sources, click to pin)
-- Results are cached per page, so revisiting a page shows the result instantly
+- Compact English popup with the verdict and a link to the full report
+- Highlights in the article with the verdict and a report link on hover
+- Per-page report cache for previously matched quotes
 - Check runs in the background, so the popup can be closed
 
 ## Project structure
@@ -24,35 +23,37 @@ faktencheck-ampel/
 ├── popup.html        # popup UI and styles
 ├── popup.js          # popup logic
 ├── highlight.js      # content script: marks claims in the article
+├── website/         # companion site for the full demo reports
 ├── icons/            # toolbar and store icons
 └── docs/
-    └── ANLEITUNG.txt # original German user guide
+    └── ANLEITUNG.txt # user guide
 ```
 
 ## Install (development)
 1. Clone or download this repository.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the repository folder.
-4. Pin "Faktencheck Ampel" via the puzzle icon.
+4. Pin **BAware** via the puzzle icon.
 5. Use Chrome 127 or newer and allow the extension's requested access to Spiegel,
    Facebook and ScienceDirect.
 6. Open an article whose URL is listed in `demo-cases.js`. The popup opens as soon
    as navigation starts, shows a simulated loading state for about three seconds,
-   then reveals the prepared demo verdict or the completed check result. This
-   initial rating is labelled as a demo preview, not a completed article check.
+   then reveals the check result or a **Prepared demo rating** while the page
+   text is still loading.
    Once the article loads, its text is checked automatically and the popup updates
    with the matching claims or an error if the prepared quotes are absent.
    Switching to an already loaded demo tab also starts a check. No API key is needed.
    The popup opens only while that article is the active tab in the focused window.
-   You can still open the extension and click **Prüfen** manually.
+   Open **Check options** to check a link manually or change the highlight setting.
+7. Select **View details on the BAware website** to open the report for that demo page.
 
 ## Trying and editing demo cases
 
-- The current demo URL is the Spiegel article at the top of `demo-cases.js`.
-  Open that full URL, wait for the article to load, and dismiss any consent dialog.
-- You can also paste a configured URL into **Link prüfen**. Allow website access
-  when prompted. If the publisher blocks fetching, open the article in the active
-  tab and check it there.
+- The current demo URLs cover Spiegel, Facebook, and ScienceDirect. Open the
+  full URL, wait for the page to load, and dismiss any consent dialog.
+- You can also paste a configured URL into **Check options** and click **Check link**.
+  Allow website access when prompted. If the publisher blocks fetching, open the
+  article in the active tab and check it there.
 - Each case needs its article's URL and at least one claim. Copy `quote` as a
   complete sentence from the visible article, including punctuation. Whitespace
   differences, wrapped lines and equivalent ellipsis/dash characters are ignored,
@@ -65,22 +66,29 @@ faktencheck-ampel/
   from matching. Facebook navigation without a full page reload is also checked.
 - Set `verdict` to `wahr`, `falsch`, `irrefuehrend`, or `unklar`, and provide an
   explanation and real source URLs in `supporting` and `contradicting`. Use `[]`
-  when there are no sources; replace the example's placeholder source entries.
+  when there are no sources. Give each demo an `id` and English `title` for its
+  report link. Add a `translation` for any quote that originally appears in another
+  language, keeping `quote` in its original wording for matching.
 - After changing extension files, click **Reload** on `chrome://extensions`,
   then reload the article to run a fresh automatic check.
 - Automatic checks require host access. When adding demo cases on another domain,
   add that domain to `host_permissions` in `manifest.json` and reload the extension.
-- Other URLs and pasted text are not supported by this demo. If no quotes match,
-  check whether the article changed or its text is behind a paywall.
+- If no quotes match, check whether the article changed or its text is behind a paywall.
 
 Run the local regression checks with `node --test`.
 
 ## Privacy and security
 - **Never commit an API key.** `.gitignore` excludes `.env` files and `*.key`.
 - Supported demo articles are read automatically when loaded in the active tab
-  or when you switch to that tab, and when you click "Prüfen" manually. Text is
-  matched locally against the unchanged demo cases. Reports are cached in
-  `chrome.storage.local`.
+  or when you switch to that tab. Manual checks run when you click **Check link**.
+  Text matching and report caching happen in Chrome. Report links use the configured
+  demo IDs.
+
+## Companion site
+
+The popup uses `homepage_url` in `manifest.json` when a hosted report site is
+configured. With no hosted URL, the link opens the bundled `website/index.html`.
+Both versions use the reviews from `demo-cases.js`.
 
 ## Roadmap
 - [ ] To be defined, one improvement step at a time

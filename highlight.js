@@ -1,21 +1,27 @@
-/* Faktencheck – Markierungen im Artikel.
-   Wird von der Erweiterung in die geprüfte Seite eingefügt. Findet die zitierten Stellen,
-   unterstreicht sie in Ampelfarben und zeigt beim Darüberfahren Urteil und Quellen. */
+// Marks matched quotes in the page and links to the full report.
 (() => {
-  if (globalThis.__fc?.version === 2) return;
+  if (globalThis.__fc?.version === 4) return;
   globalThis.__fc?.clear();
 
   const COLORS = {
-    falsch:       { line: "#d93025", bg: "rgba(229,56,59,.16)",  label: "Falsch" },
-    irrefuehrend: { line: "#e0a100", bg: "rgba(244,180,0,.20)",  label: "Irreführend" },
-    wahr:         { line: "#1e9e55", bg: "rgba(47,179,94,.15)",  label: "Wahr" },
-    unklar:       { line: "#e0a100", bg: "rgba(244,180,0,.20)", label: "Unklar" }
+    falsch:       { line: "#d93025", bg: "rgba(229,56,59,.16)", label: "False" },
+    irrefuehrend: { line: "#e0a100", bg: "rgba(244,180,0,.20)", label: "Misleading" },
+    wahr:         { line: "#1e9e55", bg: "rgba(47,179,94,.15)", label: "Supported" },
+    unklar:       { line: "#e0a100", bg: "rgba(244,180,0,.20)", label: "Unclear" }
   };
   const LIGHT = { r: "#e5383b", y: "#f4b400", g: "#2fb35e" };
   const normV = v => { v = String(v || "").toLowerCase().replace("ü", "ue");
     if (v.startsWith("wahr")) return "wahr"; if (v.startsWith("falsch")) return "falsch"; if (v.startsWith("irref")) return "irrefuehrend"; return "unklar"; };
-  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-  const safeHref = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : null; } catch { return null; } };
+  function reportHref(value) {
+    try {
+      const url = new URL(value);
+      if (/^https?:$/.test(url.protocol)) return url.href;
+      if (url.protocol === "chrome-extension:" && url.hostname === chrome.runtime.id && url.pathname === "/website/index.html") return url.href;
+    } catch {
+      // Older cached reports may not include a details link.
+    }
+    return null;
+  }
 
   /* ---------- page styles for the marks (custom tag, so page CSS rarely touches it) ---------- */
   function ensureStyle() {
@@ -142,22 +148,17 @@
     const root = hostEl.attachShadow({ mode: "open" });
     root.innerHTML = `<style>
       *{box-sizing:border-box;font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
-      .tip{position:fixed;width:340px;max-width:calc(100vw - 24px);background:#fff;color:#0f1b2d;border:1px solid #dde2ea;border-radius:12px;box-shadow:0 12px 32px -10px rgba(15,27,45,.35);padding:14px;pointer-events:auto;font-size:13.5px;line-height:1.5;display:none}
+      .tip{position:fixed;width:270px;max-width:calc(100vw - 24px);background:#fff;color:#0f1b2d;border:1px solid #dde2ea;border-radius:12px;box-shadow:0 12px 32px -10px rgba(15,27,45,.35);padding:14px;pointer-events:auto;font-size:13.5px;line-height:1.5;display:none}
       .tip.on{display:block}
-      .row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+      .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
       .chip{font-weight:600;font-size:12px;border-radius:999px;padding:3px 9px;color:#fff}
       .brand{font:500 10.5px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:#566275}
-      .claim{font:600 15px/1.35 Georgia,"Times New Roman",serif;margin:0 0 6px}
-      .expl{margin:0 0 10px;color:#33405a}
-      .src{display:flex;flex-direction:column;gap:6px;border-top:1px solid #dde2ea;padding-top:9px}
-      .src h4{margin:0;font:600 10.5px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
-      .src a{color:#1c4fc4;text-decoration:none;font-weight:600;font-size:13px}
-      .src a:hover{text-decoration:underline}
-      .src span{color:#566275;font-size:12.5px;display:block}
+      .report-link{display:inline-block;margin-top:8px;color:#244b9d;font-weight:600;text-underline-offset:2px}
       .pill{position:fixed;right:16px;bottom:16px;display:flex;align-items:center;gap:10px;background:#141c2b;color:#fff;border-radius:999px;padding:8px 8px 8px 12px;font-size:13px;pointer-events:auto;box-shadow:0 8px 24px -8px rgba(0,0,0,.45)}
       .lamp{display:flex;gap:3px}.lamp i{width:9px;height:9px;border-radius:50%;background:#3a4458;display:block}
       .pill button{all:unset;cursor:pointer;background:rgba(255,255,255,.12);border-radius:999px;padding:4px 10px;font-size:12px}
       .pill button:hover{background:rgba(255,255,255,.22)}
+      .pill[hidden]{display:none}
     </style><div class="tip" part="tip"></div><div class="pill" hidden></div>`;
     document.documentElement.append(hostEl);
     const tip = root.querySelector(".tip");
@@ -172,20 +173,28 @@
     const c = report && report.claims[+mark.dataset.i]; if (!c) return;
     const { tip } = ensureUi(); const v = normV(c.verdict), col = COLORS[v];
     tip.replaceChildren();
-    const row = el("div", "row"); const chip = el("span", "chip", col.label + (c.confidence != null ? " · " + Math.round(+c.confidence) + " %" : ""));
-    chip.style.background = col.line; row.append(chip, el("span", "brand", "Faktencheck · Aussage " + (+mark.dataset.i + 1)));
-    tip.append(row, el("p", "claim", c.claim || ""));
-    if (c.explanation) tip.append(el("p", "expl", c.explanation));
-    const addSrc = (title, list, color) => {
-      const ok = (list || []).filter(s => safeHref(s.url)).slice(0, 2); if (!ok.length) return;
-      const box = el("div", "src"); const h = el("h4", null, title); h.style.color = color; box.append(h);
-      for (const s of ok) { const a = el("a", null, s.title || host(s.url)); a.href = safeHref(s.url); a.target = "_blank"; a.rel = "noopener noreferrer";
-        const d = el("div"); d.append(a, el("span", null, host(s.url) + (s.statement ? " – " + s.statement : ""))); box.append(d); }
-      tip.append(box);
-    };
-    addSrc("Bestätigen", c.supporting, "#1e9e55"); addSrc("Sagen etwas anderes", c.contradicting, "#d93025");
+    const row = el("div", "row");
+    const chip = el("span", "chip", col.label);
+    chip.style.background = col.line;
+    if (v === "unklar" || v === "irrefuehrend") chip.style.color = "#231b08";
+    row.append(chip, el("span", "brand", "Demo review"));
+    tip.append(row);
+    const href = reportHref(report.detailsUrl);
+    if (href) {
+      const link = el("a", "report-link", "View full report");
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      if (href.startsWith("chrome-extension:")) {
+        link.onclick = event => {
+          event.preventDefault();
+          void chrome.runtime.sendMessage({ type: "open-report", source: report.source }).catch(console.error);
+        };
+      }
+      tip.append(link);
+    }
     tip.classList.add("on");
-    const r = mark.getBoundingClientRect(), tw = Math.min(340, innerWidth - 24);
+    const r = mark.getBoundingClientRect(), tw = Math.min(270, innerWidth - 24);
     let left = Math.min(Math.max(12, r.left), innerWidth - tw - 12);
     tip.style.left = left + "px"; tip.style.top = "0px";
     const th = tip.offsetHeight;
@@ -207,8 +216,8 @@
     const lamp = el("span", "lamp"); const light = report.light;
     for (const k of ["r", "y", "g"]) { const i = el("i"); if (k === light) { i.style.background = LIGHT[k]; i.style.boxShadow = "0 0 6px " + LIGHT[k]; } lamp.append(i); }
     const score = report.overall && report.overall.score != null ? " · " + Math.round(+report.overall.score) + "/100" : "";
-    const b = el("button", null, "Ausblenden"); b.onclick = () => clear();
-    pill.append(lamp, el("span", null, `Faktencheck${score} · ${found} von ${report.claims.length} Aussagen markiert`), b);
+    const b = el("button", null, "Hide"); b.onclick = () => clear();
+    pill.append(lamp, el("span", null, `BAware${score} · ${found} of ${report.claims.length} claims highlighted`), b);
     pill.hidden = false;
   }
 
@@ -242,5 +251,5 @@
     return true;
   }
 
-  globalThis.__fc = { version: 2, apply, clear, focus, active: () => !!report };
+  globalThis.__fc = { version: 4, apply, clear, focus, active: () => !!report };
 })();

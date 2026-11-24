@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "minimum_chrome_version": "127",
-  "name": "Faktencheck Ampel",
+  "name": "BAware",
   "version": "2.2.0",
-  "description": "Ampel in der Symbolleiste: prüft die geöffnete Seite auf Falschinformation und gleicht ihre Aussagen mit unabhängigen Quellen ab.",
+  "description": "A traffic light summary of prepared fact checks for selected demo pages.",
+  "homepage_url": "https://faktencheck-ampel-reports.roundgiant4096.chatgpt.site",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -11,7 +12,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Faktencheck",
+    "default_title": "BAware",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

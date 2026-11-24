@@ -1,8 +1,8 @@
 "use strict";
 
-importScripts("demo-cases.js", "page-reader.js");
+importScripts("demo-cases.js", "website/review.js", "page-reader.js");
 
-const LIGHT_NAME = { r: "Rot", y: "Gelb", g: "Grün" };
+const LIGHT_NAME = { r: "Red", y: "Yellow", g: "Green" };
 const BRIGHT = { r: "#e5383b", y: "#f4b400", g: "#2fb35e" };
 const DIM = { r: "#6e3437", y: "#6b5a24", g: "#2b5d3d" };
 
@@ -15,8 +15,7 @@ const highlightRevealAt = new Map();
 let draining = false;
 
 function isDemoUrl(value) {
-  const url = normUrl(value);
-  return !!url && DEMO_CASES.some(entry => normUrl(entry.url) === url);
+  return !!demoForUrl(value);
 }
 
 async function openResultPopup(tabId, source, waitForLoad = true) {
@@ -29,7 +28,7 @@ async function openResultPopup(tabId, source, waitForLoad = true) {
         normUrl(tab.pendingUrl || tab.url) !== url) return;
     if (openedPopups.get(tabId) === url) return;
     openedPopups.set(tabId, url);
-    highlightRevealAt.set(tabId, { url, at: Date.now() + 3000 });
+    highlightRevealAt.set(tabId, { url, at: Date.now() + DEMO_LOADING_MS });
     // Hide marks left from an earlier visit while the popup shows its loading state.
     await clearMarks(tabId);
     try {
@@ -40,7 +39,7 @@ async function openResultPopup(tabId, source, waitForLoad = true) {
     }
   } catch (error) {
     // The toolbar result remains available if Chrome cannot display the popup.
-    console.warn("Ergebnis-Popup konnte nicht geöffnet werden:", error);
+    console.warn("The results popup could not be opened", error);
   }
 }
 
@@ -66,7 +65,7 @@ async function drainAutomaticChecks() {
         const [{ result: page }] = await chrome.scripting.executeScript({
           target: { tabId },
           func: readDemoPage,
-          args: [DEMO_CASES.find(entry => normUrl(entry.url) === url).claims.map(claim => claim.quote)]
+          args: [demoForUrl(url).claims.map(claim => claim.quote)]
         });
         if (running) {
           autoQueue.set(tabId, url);
@@ -74,33 +73,14 @@ async function drainAutomaticChecks() {
         }
         if (normUrl(page?.url) !== url) continue;
         autoChecked.set(tabId, url);
-        await runCheck(page, tabId, ["Artikel automatisch gelesen"], true);
+        await runCheck(page, tabId, ["Page read automatically"], true);
       } catch (error) {
-        console.warn("Automatische Demo-Prüfung fehlgeschlagen:", error);
+        console.warn("The automatic demo check failed", error);
       }
     }
   } finally {
     draining = false;
   }
-}
-
-function safeUrl(value) {
-  try {
-    const url = new URL(value);
-    return /^https?:$/.test(url.protocol) ? url : null;
-  } catch {
-    return null;
-  }
-}
-
-function normUrl(value) {
-  const url = safeUrl(value);
-  if (!url) return null;
-  url.hash = "";
-  for (const key of [...url.searchParams.keys()]) {
-    if (/^utm_/i.test(key) || /^(fbclid|gclid)$/i.test(key)) url.searchParams.delete(key);
-  }
-  return url.href.replace(/\/$/, "");
 }
 
 function normalizeText(value) {
@@ -111,11 +91,10 @@ function normalizeText(value) {
 }
 
 function checkDemo(page) {
-  const url = normUrl(page.url);
-  const demo = url && DEMO_CASES.find(entry => normUrl(entry.url) === url);
+  const demo = demoForUrl(page.url);
 
   if (!demo) {
-    throw new Error("Für diese Seite ist keine Demo-Prüfung hinterlegt.");
+    throw new Error("No demo review is available for this page.");
   }
 
   // Compare complete sentences so a longer or negated claim can't
@@ -142,7 +121,7 @@ function checkDemo(page) {
     }));
 
   if (!claims.length) {
-    throw new Error("Die vorbereiteten Aussagen wurden im sichtbaren Seitentext nicht gefunden. Bitte prüfe, ob ein Login, eine Einwilligung oder eine Bezahlschranke den Text verdeckt.");
+    throw new Error("The prepared quotes were not found. Check whether a sign-in prompt, consent dialog, or paywall is hiding the text.");
   }
 
   const sources = claims.flatMap(claim => [
@@ -156,7 +135,7 @@ function checkDemo(page) {
     title: page.title,
     source: page.url,
     overall: partial
-      ? { rating: "gemischt", headline: "Nur teilweise geprüft" }
+      ? { rating: "gemischt", headline: "Partial check" }
       : null,
     live: false,
     claims,
@@ -166,14 +145,7 @@ function checkDemo(page) {
 }
 
 function lightFor(report) {
-  if (report.overall?.rating === "gemischt") return "y";
-
-  const verdicts = report.claims.map(claim => claim.verdict);
-  if (verdicts.includes("falsch")) return "r";
-  if (verdicts.length && verdicts.every(verdict => verdict === "wahr")) {
-    return "g";
-  }
-  return "y";
+  return reviewStatus(report).light;
 }
 
 function drawIcon(activeLight) {
@@ -210,7 +182,7 @@ async function setLight(tabId, light = null) {
     await chrome.action.setIcon({ tabId, imageData: drawIcon(light) });
     await chrome.action.setTitle({
       tabId,
-      title: light ? `Demo-Prüfung: ${LIGHT_NAME[light]}` : "Faktencheck"
+      title: light ? `BAware · ${LIGHT_NAME[light]}` : "BAware"
     });
   } catch {
     // The tab may have closed during the check.
@@ -245,7 +217,7 @@ async function applyMarks(tabId, report) {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       func: data => globalThis.__fc.apply(data),
-      args: [{ ...report, light: lightFor(report) }]
+      args: [{ ...report, light: lightFor(report), detailsUrl: reportUrl(demoForUrl(report.source)) }]
     });
 
     return result;
@@ -316,7 +288,7 @@ async function runCheck(page, tabId, preLog, automatic = false) {
     cache[normUrl(page.url)] = report;
     job.status = "done";
     job.report = report;
-    job.log.push({ m: "Demo-Prüfung abgeschlossen", c: "" });
+    job.log.push({ m: "Demo check complete", c: "" });
 
     await chrome.storage.local.set({ job, cache });
     await setLight(tabId, lightFor(report));
@@ -332,8 +304,8 @@ async function runCheck(page, tabId, preLog, automatic = false) {
   } catch (error) {
     const stopped = error.name === "AbortError";
     job.status = stopped ? "stopped" : "error";
-    job.error = stopped ? null : error.message || "Unbekannter Fehler.";
-    job.log.push({ m: stopped ? "Gestoppt" : "Abgebrochen", c: "err" });
+    job.error = stopped ? null : error.message || "The check could not be completed.";
+    job.log.push({ m: stopped ? "Stopped" : "Check failed", c: "err" });
     await chrome.storage.local.set({ job });
     await setLight(tabId);
   } finally {
@@ -394,7 +366,7 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   switch (message.type) {
     case "check":
       if (running) {
-        reply({ ok: false, error: "Es läuft schon eine Prüfung." });
+        reply({ ok: false, error: "A check is already running." });
         return;
       }
 
@@ -407,6 +379,10 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
       controller?.abort();
       reply({ ok: true });
       return;
+    case "open-report":
+      chrome.tabs.create({ url: reportUrl(demoForUrl(message.source)) })
+        .then(() => reply({ ok: true }), () => reply({ ok: false }));
+      return true;
 
     case "marks":
       void (async () => {
@@ -435,7 +411,7 @@ void chrome.storage.local.get("job").then(({ job }) => {
       job: {
         ...job,
         status: "error",
-        error: "Die Prüfung wurde unterbrochen. Bitte erneut auf „Prüfen“ tippen."
+        error: "The check was interrupted. Try again in Check options."
       }
     });
   }

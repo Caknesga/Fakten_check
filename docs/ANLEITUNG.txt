@@ -1,51 +1,34 @@
-FAKTENCHECK AMPEL – Chrome-Erweiterung
-======================================
+BAware for Chrome
+=================
 
-INSTALLIEREN (einmalig, ca. 2 Minuten, nur am Computer)
-1. ZIP entpacken. Es entsteht der Ordner "faktencheck-ampel".
-2. In Chrome die Adresse  chrome://extensions  öffnen.
-3. Oben rechts den "Entwicklermodus" einschalten.
-4. "Entpackte Erweiterung laden" klicken und den Ordner "faktencheck-ampel" wählen.
-   (Die alte Version "Faktencheck" mit Seitenleiste kannst du dort entfernen.)
-5. Oben rechts auf das Puzzle-Symbol klicken und "Faktencheck Ampel" anpinnen.
+INSTALL
+1. Open chrome://extensions in Chrome 127 or newer and turn on Developer mode.
+2. Click Load unpacked and choose the faktencheck-ampel folder.
+3. Pin BAware from the Extensions menu in the toolbar.
+4. Allow access to the demo websites when Chrome prompts you.
 
-BENUTZEN
-- Oben in der Symbolleiste siehst du eine kleine Ampel.
-- Klick darauf: Unter der Ampel öffnet sich das Fenster. Ganz oben siehst du die
-  Ampel der aktuellen Seite und direkt daneben den Knopf "Prüfen".
-- "Prüfen" tippen. Während der Prüfung blinkt die Ampel rot-gelb-grün.
-  Du kannst das Fenster schließen, die Prüfung läuft weiter.
-- Danach leuchtet die Ampel in der Farbe des Ergebnisses. Kommst du später auf
-  dieselbe Seite zurück, zeigt sie das Ergebnis sofort wieder an.
+CHECK A DEMO PAGE
+Open a URL listed in demo-cases.js. The popup opens automatically and shows
+a loading state for about three seconds. The traffic light and summary cover
+the claims selected for that demo. A prepared rating can appear while the page
+text is still loading. A gray light means there is no rating for the page.
 
-MARKIERUNGEN IM ARTIKEL
-- Nach der Prüfung werden die geprüften Sätze direkt im Artikel unterstrichen:
-  rot = falsch, gelb = irreführend, grün = wahr, grau gestrichelt = unklar.
-- Maus über eine Markierung: Urteil, Begründung und Quellen erscheinen.
-  Klick darauf: das Kästchen bleibt offen, damit du die Quellen anklicken kannst.
-- Unten rechts zeigt eine Leiste die Ampel, den Punktwert und wie viele Aussagen
-  markiert sind. "Ausblenden" entfernt die Markierungen.
-- Im Fenster hat jede Aussage den Knopf "Im Text zeigen": springt zur Stelle.
-- Der Schalter "Aussagen im Artikel farbig markieren" im Fenster schaltet das an/aus.
-- Markierungen gibt es nur bei der Prüfung im Fenster (API-Schlüssel),
-  nicht beim kostenlosen Weg über das Claude-Artefakt.
+READ THE DETAILS
+Select View details on the BAware website at the bottom of the popup.
+Each demo report lists the reviewed quote, the assessment, and its references.
+Any original quote in another language is available below its translation.
 
-TIPP FÜR DIE PRÄSENTATION
-- Prüfe deine Demo-Artikel vorher (z. B. einen roten, gelben, grünen).
-  In der Präsentation einfach die Seite öffnen: Ampel und Markierungen
-  erscheinen sofort, ohne Wartezeit und ohne neue Kosten.
+HIGHLIGHTS
+Once the page text matches the demo quotes, the extension highlights them.
+Green means supported, red means false, and yellow means unclear or misleading.
+Hover on a quote to see its rating or click the quote to keep its report link open.
+Use Check options in the popup to change the highlight setting, or use Hide on
+the page to clear the current highlights.
 
-ZWEI WEGE ZU PRÜFEN
-A) Im Fenster (API-Schlüssel, kostet ca. 3–25 Cent pro Prüfung)
-   1. Auf https://platform.claude.com anmelden, unter "Billing" Guthaben aufladen (z. B. 5 $).
-   2. Unter "API Keys" einen Schlüssel erstellen.
-   3. Im Fenster auf das Zahnrad klicken, Schlüssel einfügen, Speichern.
-B) Kostenlos mit deinem Claude-Abo
-   Knopf "Kostenlos mit Claude-Abo prüfen": Der Link wird kopiert und dein
-   Faktencheck-Artefakt auf claude.ai öffnet sich. Dort einfügen und prüfen.
-   (Die Ampel in der Symbolleiste färbt sich bei diesem Weg nicht.)
+MANUAL CHECK
+Open Check options, enter a demo URL, and select Check link. If a website blocks
+retrieval in the popup, open that page and check it in its tab.
 
-DATENSCHUTZ
-- Der API-Schlüssel bleibt nur in diesem Browser gespeichert.
-- Die Erweiterung liest eine Seite nur, wenn du auf "Prüfen" tippst, und schickt
-  den Text nur an die Claude API von Anthropic.
+PRIVACY
+The browser reads the visible text of the demo page and compares it to the
+prepared quotes. Text stays in the browser and results are cached locally.

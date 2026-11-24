@@ -4,6 +4,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const read = name => fs.readFileSync(path.join(__dirname, "..", name), "utf8");
+const manifest = JSON.parse(read("manifest.json"));
+const runtimeLinks = {
+  getManifest: () => manifest,
+  getURL: file => "chrome-extension://demo/" + file
+};
 
 function demoWorker() {
   const context = vm.createContext({
@@ -40,8 +45,8 @@ test("configured article matches complete quotes, including whitespace variation
 
 test("unknown URLs and altered sentences cannot inherit a demo verdict", () => {
   const { entry, check } = demoWorker();
-  assert.throws(() => check({ url: "https://example.org", text: entry.claims[0].quote }), /keine Demo/);
-  assert.throws(() => check({ url: entry.url, text: "Angeblich: " + entry.claims[0].quote }), /nicht gefunden/);
+  assert.throws(() => check({ url: "https://example.org", text: entry.claims[0].quote }), /No demo review/);
+  assert.throws(() => check({ url: entry.url, text: "Angeblich: " + entry.claims[0].quote }), /quotes were not found/);
 });
 
 test("every configured demo matches its quotes and retains its prepared verdict", () => {
@@ -139,21 +144,22 @@ class Element {
     this.value = "";
     this.children = [];
     this.listeners = {};
-    this.style = { setProperty() {} };
-    this.classList = { add() {}, remove() {} };
+    this.dataset = {};
+    this.attributes = {};
   }
+  get childElementCount() { return this.children.length; }
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
-  setAttribute() {}
+  setAttribute(name, value) { this.attributes[name] = value; }
+  removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(type, handler) { this.listeners[type] = handler; }
-  querySelectorAll() { return []; }
-  querySelector() { return new Element(); }
-  focus() {}
 }
 
-async function popupFixture({ loading = false } = {}) {
+async function popupFixture({ loading = false, index = 0 } = {}) {
   const worker = demoWorker();
-  const ids = new Map([...read("popup.html").matchAll(/\bid="([^"]+)"/g)]
+  const entry = worker.entries[index];
+  const html = read("popup.html");
+  const ids = new Map([...html.matchAll(/\bid="([^"]+)"/g)]
     .map(([, id]) => [id, new Element()]));
   const changes = [];
   let requests = 0;
@@ -162,20 +168,16 @@ async function popupFixture({ loading = false } = {}) {
   const timers = [];
   class FakeDate extends Date { static now() { return now; } }
   const publishReport = () => {
-    const report = worker.check({ url: worker.entry.url, text: worker.entry.claims[0].quote });
+    const report = worker.check({ url: entry.url, text: entry.claims[0].quote });
     for (const handler of changes) handler({ job: { newValue: {
-      status: "done", url: worker.entry.url, report,
-      log: [{ m: "Demo-Prüfung abgeschlossen" }]
+      status: "done", url: entry.url, report
     } } }, "local");
   };
   const context = vm.createContext({
     URL, console, Date: FakeDate,
     setTimeout: (callback, delay) => { timers.push({ callback, at: now + delay }); return timers.length; },
     document: {
-      getElementById: id => ids.get(id) || null,
-      createElement: () => new Element(),
-      createDocumentFragment: () => new Element(),
-      querySelectorAll: () => []
+      getElementById: id => ids.get(id) || null
     },
     chrome: {
       storage: {
@@ -183,34 +185,32 @@ async function popupFixture({ loading = false } = {}) {
         onChanged: { addListener: handler => changes.push(handler) }
       },
       tabs: { query: async () => [{ id: 1,
-        url: loading ? "https://example.org" : worker.entry.url,
-        pendingUrl: loading ? worker.entry.url : undefined
+        url: loading ? "https://example.org" : entry.url,
+        pendingUrl: loading ? entry.url : undefined
       }] },
       permissions: { request: async () => { requests++; return false; } },
       scripting: {
         executeScript: async () => [{ result: {
-          title: "Demo article", url: worker.entry.url,
-          text: worker.entry.claims[0].quote + "\n" + "Weiterer Artikeltext. ".repeat(20)
+          title: "Demo article", url: entry.url,
+          text: entry.claims[0].quote + "\nMore article text."
         } }]
       },
       runtime: {
+        ...runtimeLinks,
         sendMessage: async message => {
           assert.equal(message.type, "check");
           checks++;
           const report = worker.check(message.page);
           // A fast worker can finish before the popup receives its acknowledgement.
           for (const handler of changes) handler({ job: { newValue: {
-            status: "done", url: message.page.url, report,
-            log: [{ m: "Demo-Prüfung abgeschlossen" }]
+            status: "done", url: message.page.url, report
           } } }, "local");
           return { ok: true };
         }
       }
     }
   });
-  vm.runInContext(read("demo-cases.js"), context);
-  vm.runInContext(read("page-reader.js"), context);
-  vm.runInContext(read("popup.js"), context);
+  for (const [, src] of html.matchAll(/<script src="([^"]+)">/g)) vm.runInContext(read(src), context);
   await new Promise(resolve => setImmediate(resolve));
   return {
     ids, requests: () => requests, checks: () => checks,
@@ -235,19 +235,22 @@ test("popup starts with the real HTML and renders a completed active-tab demo", 
   await popup.submit();
   assert.equal(popup.checks(), 1);
   assert.equal(popup.requests(), 0);
-  assert.equal(popup.ids.get("hudLabel").textContent, "Grün");
+  assert.equal(popup.ids.get("status-title").textContent, "Claims supported");
+  assert.equal(popup.ids.get("status").dataset.tone, "green");
   assert.equal(popup.ids.get("go").disabled, false);
   assert.equal(popup.ids.get("stop").hidden, true);
-  assert.ok(popup.ids.get("result").children.length);
+  assert.match(popup.ids.get("status-scope").textContent, /1 matched claim/);
 });
 
 test("denied access to a pasted link displays an error and allows retry", async () => {
   const popup = await popupFixture();
-  popup.ids.get("url").value = "https://example.org/article";
+  const input = popup.ids.get("url");
+  input.value = "https://example.org/article";
+  input.listeners.input();
   await popup.submit();
   assert.equal(popup.requests(), 1);
   assert.equal(popup.checks(), 0);
-  assert.match(popup.ids.get("result").children[0].textContent, /Ohne Leserecht/);
+  assert.match(popup.ids.get("status-description").textContent, /Website access was declined/);
   assert.equal(popup.ids.get("go").disabled, false);
 });
 
@@ -276,7 +279,7 @@ async function automaticFixture(index = 0) {
         onRemoved: { addListener: fn => { events.removed = fn; } }
       },
       windows: { get: async () => ({ focused }) },
-      runtime: { onMessage: { addListener() {} } },
+      runtime: { ...runtimeLinks, onMessage: { addListener() {} } },
       action: {
         setIcon: async () => {}, setTitle: async () => {},
         openPopup: async options => { popups.push({ options, job: structuredClone(data.job) }); }
@@ -348,26 +351,25 @@ test("loading a demo opens the popup before the check and updates results automa
 test("first popup loads for three seconds then reveals the demo verdict automatically", async () => {
   const fixture = await popupFixture({ loading: true });
   assert.match(fixture.ids.get("url").value, /spiegel\.de/);
-  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
-  assert.equal(fixture.ids.get("result").children.length, 0);
+  assert.equal(fixture.ids.get("status-title").textContent, "Checking this page");
+  assert.equal(fixture.ids.get("status").dataset.tone, "neutral");
   assert.equal(fixture.ids.get("go").disabled, true);
   fixture.advance(2999);
-  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
+  assert.equal(fixture.ids.get("status-title").textContent, "Checking this page");
   fixture.advance(1);
-  assert.equal(fixture.ids.get("hudLabel").textContent, "Grün");
-  assert.match(fixture.ids.get("modeNote").textContent, /Vorbereitete Demo-Bewertung/);
-  assert.ok(fixture.ids.get("result").children.length);
+  assert.equal(fixture.ids.get("status").dataset.tone, "green");
+  assert.equal(fixture.ids.get("status-scope").textContent, "Prepared demo rating");
   assert.equal(fixture.checks(), 0);
 });
 
 test("fast background results stay hidden until the demo loading interval ends", async () => {
   const fixture = await popupFixture();
   fixture.publishReport();
-  assert.equal(fixture.ids.get("hudLabel").textContent, "Prüfung läuft");
-  assert.equal(fixture.ids.get("result").children.length, 0);
+  assert.equal(fixture.ids.get("status-title").textContent, "Checking this page");
+  assert.equal(fixture.ids.get("status").dataset.tone, "neutral");
   fixture.advance(3000);
-  assert.equal(fixture.ids.get("hudLabel").textContent, "Grün");
-  assert.ok(fixture.ids.get("result").children.length);
+  assert.equal(fixture.ids.get("status").dataset.tone, "green");
+  assert.match(fixture.ids.get("status-scope").textContent, /1 matched claim/);
   assert.equal(fixture.ids.get("go").disabled, false);
 });
 
@@ -376,6 +378,38 @@ test("an immediately opened popup associates the report with the destination tab
   fixture.publishReport();
   fixture.advance(3000);
   assert.ok(fixture.reportForTab(), "The marking controls must use the destination URL, not the previous page");
+});
+
+test("the popup links to the matching demo report with its explanation and references", async () => {
+  const { entries } = demoWorker();
+  const tones = ["green", "red", "yellow"];
+  for (const [index, entry] of entries.entries()) {
+    const popup = await popupFixture({ index });
+    popup.publishReport();
+    popup.advance(3000);
+    assert.equal(popup.ids.get("status").dataset.tone, tones[index]);
+    const link = new URL(popup.ids.get("report-link").href);
+    assert.equal(link.origin, new URL(manifest.homepage_url || runtimeLinks.getURL("website/index.html")).origin);
+    assert.equal(link.hash, "#" + entry.id);
+
+    const targets = { "case-list": new Element(), report: new Element() };
+    const context = vm.createContext({
+      URL, location: { hash: link.hash }, window: { addEventListener() {} },
+      document: { getElementById: id => targets[id], createElement: () => new Element() }
+    });
+    for (const [, src] of read("website/index.html").matchAll(/<script src="([^"]+)">/g)) {
+      vm.runInContext(read(path.join("website", src)), context);
+    }
+    const descendants = node => node.children.flatMap(child => [child, ...descendants(child)]);
+    const content = descendants(targets.report);
+    assert.equal(content.find(node => node.id === "report-title").textContent, entry.title);
+    for (const claim of entry.claims) {
+      assert.ok(content.some(node => node.textContent === claim.explanation));
+      for (const source of [...claim.supporting, ...claim.contradicting]) {
+        assert.ok(content.some(node => node.href === source.url), source.url);
+      }
+    }
+  }
 });
 
 test("activating an already loaded demo triggers a check", async () => {
